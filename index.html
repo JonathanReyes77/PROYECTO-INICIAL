@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulador de Atenuacion Pasiva de Señal RF</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F1EFEA;
+    --panel: #FFFFFF;
+    --panel-2: #FBFAF7;
+    --text: #1C1B1A;
+    --text-dim: #6B655D;
+    --line: #DBD6CC;
+    --accent: #A3271E;
+    --accent-soft: rgba(163,39,30,0.12);
+    --ok: #3C6E4F;
+    --ok-soft: rgba(60,110,79,0.14);
+    --warn: #A3691E;
+    --warn-soft: rgba(163,105,30,0.14);
+    --wall-concreto: #8A8478;
+    --wall-ladrillo: #8C4A34;
+
+    --font-display: 'Space Grotesk', system-ui, sans-serif;
+    --font-body: 'Inter', system-ui, sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17181A; --panel: #201F1D; --panel-2: #262421;
+      --text: #EDEAE4; --text-dim: #9A948C; --line: #3A3836;
+      --accent: #C4453B; --accent-soft: rgba(196,69,59,0.18);
+      --ok: #6FAE82; --ok-soft: rgba(111,174,130,0.14);
+      --warn: #D9A24E; --warn-soft: rgba(217,162,78,0.14);
+      --wall-concreto: #6E6A61; --wall-ladrillo: #7A4230;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #17181A; --panel: #201F1D; --panel-2: #262421;
+    --text: #EDEAE4; --text-dim: #9A948C; --line: #3A3836;
+    --accent: #C4453B; --accent-soft: rgba(196,69,59,0.18);
+    --ok: #6FAE82; --ok-soft: rgba(111,174,130,0.14);
+    --warn: #D9A24E; --warn-soft: rgba(217,162,78,0.14);
+    --wall-concreto: #6E6A61; --wall-ladrillo: #7A4230;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    min-height: 100vh;
+    padding: clamp(16px, 4vw, 40px);
+  }
+
+  .wrap { max-width: 1180px; margin: 0 auto; }
+
+  header.top {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    gap: 24px; flex-wrap: wrap;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 18px; margin-bottom: 28px;
+    opacity: 0; transform: translateY(10px);
+    animation: rise 0.6s ease-out 0.05s forwards;
+  }
+  .eyebrow {
+    font-family: var(--font-display); font-size: 13px; letter-spacing: 0.04em;
+    color: var(--accent); margin: 0 0 6px 0;
+  }
+  h1 {
+    font-family: var(--font-display); font-weight: 600;
+    font-size: clamp(24px, 3.4vw, 34px); margin: 0; line-height: 1.15; max-width: 640px;
+  }
+  .top-note {
+    font-size: 13.5px; color: var(--text-dim); max-width: 300px; line-height: 1.5; text-align: right;
+  }
+  @media (max-width: 720px) { .top-note { text-align: left; } }
+
+  .grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 22px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+  .panel {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 22px;
+    opacity: 0; transform: translateY(14px);
+    animation: rise 0.6s ease-out forwards;
+  }
+  .scene-panel { animation-delay: 0.15s; display: flex; flex-direction: column; gap: 14px; }
+  .controls-panel { animation-delay: 0.25s; }
+
+  @keyframes rise { to { opacity: 1; transform: translateY(0); } }
+
+  .scene-title { font-family: var(--font-display); font-size: 15px; font-weight: 600; margin: 0; }
+  .scene-sub { font-size: 13px; color: var(--text-dim); margin: -8px 0 4px 0; }
+
+  svg.scene { width: 100%; height: auto; display: block; overflow: visible; }
+  .zone-label { font-family: var(--font-body); font-size: 12px; fill: var(--text-dim); }
+  .reading { font-family: var(--font-display); }
+
+  #tx-dot { animation: tx-breathe 1.8s ease-in-out infinite; transform-origin: 130px 170px; }
+  @keyframes tx-breathe {
+    0%, 100% { r: 6; opacity: 1; }
+    50% { r: 8; opacity: 0.75; }
+  }
+
+  .wave { transform-origin: 130px 170px; animation: wave-pulse var(--wave-dur, 2.2s) cubic-bezier(0.2,0.6,0.4,1) infinite; }
+  .wave:nth-child(1) { animation-delay: 0s; }
+  .wave:nth-child(2) { animation-delay: calc(var(--wave-dur, 2.2s) / 3); }
+  .wave:nth-child(3) { animation-delay: calc(var(--wave-dur, 2.2s) / 3 * 2); }
+  @keyframes wave-pulse {
+    0% { r: 10; opacity: 0.85; }
+    100% { r: 210; opacity: 0; }
+  }
+
+  #wall-rect { transition: width 0.4s cubic-bezier(0.3,0.7,0.4,1), fill 0.4s ease, x 0.4s ease; }
+  #wall-rect.flash { animation: wall-flash 0.5s ease; }
+  @keyframes wall-flash {
+    0% { filter: brightness(1); }
+    30% { filter: brightness(1.45); }
+    100% { filter: brightness(1); }
+  }
+
+  .particle { animation: travel linear infinite; }
+  @keyframes travel {
+    from { transform: translateX(0); opacity: 0.95; }
+    92% { opacity: 0.95; }
+    100% { transform: translateX(var(--travel-dist, 120px)); opacity: 0; }
+  }
+
+  #particles-post { transition: opacity 0.5s ease; }
+  #particles-post .particle { animation-play-state: var(--post-play, running); }
+
+  #scan-line { animation: scan 3.4s ease-in-out infinite; }
+  @keyframes scan {
+    0%, 100% { transform: translateY(-70px); opacity: 0; }
+    15% { opacity: 0.5; }
+    50% { transform: translateY(70px); opacity: 0.5; }
+    85% { opacity: 0; }
+  }
+
+  #wave-group { transition: opacity 0.5s ease; }
+
+  .verdict-row {
+    display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 8px;
+    font-size: 14px; font-weight: 500;
+    transition: background 0.4s ease;
+  }
+  .verdict-row .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; transition: background 0.4s ease; }
+  .verdict-row span:last-child { transition: color 0.4s ease; }
+  #verdict-text { display: inline-block; }
+  #verdict-text.pulse-in { animation: text-in 0.35s ease; }
+  @keyframes text-in { from { opacity: 0; transform: translateX(-4px); } to { opacity: 1; transform: translateX(0); } }
+
+  .controls { display: flex; flex-direction: column; gap: 22px; }
+  fieldset { border: none; margin: 0; padding: 0; }
+  legend { font-family: var(--font-display); font-size: 13px; color: var(--text-dim); margin-bottom: 10px; padding: 0; }
+
+  .seg { display: flex; flex-wrap: wrap; gap: 6px; }
+  .seg button {
+    font-family: var(--font-body); font-size: 13px; padding: 8px 12px; border-radius: 7px;
+    border: 1px solid var(--line); background: var(--panel-2); color: var(--text); cursor: pointer;
+    transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease, transform 0.15s ease;
+  }
+  .seg button:hover { transform: translateY(-1px); }
+  .seg button:active { transform: translateY(0px) scale(0.98); }
+  .seg button[aria-pressed="true"] {
+    border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600;
+  }
+  .seg button small { display: block; color: var(--text-dim); font-weight: 400; font-size: 11px; margin-top: 1px; }
+  .seg button[aria-pressed="true"] small { color: var(--accent); opacity: 0.8; }
+
+  .slider-row { display: flex; flex-direction: column; gap: 8px; }
+  .slider-val { font-family: var(--font-display); font-size: 15px; }
+  input[type="range"] { width: 100%; accent-color: var(--accent); }
+
+  .results { border-top: 1px solid var(--line); padding-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .result-line { display: flex; justify-content: space-between; font-size: 13.5px; }
+  .result-line span:first-child { color: var(--text-dim); }
+  .result-line span:last-child { font-family: var(--font-display); transition: color 0.3s ease; }
+
+  details { margin-top: 22px; border-top: 1px solid var(--line); padding-top: 14px; }
+  summary { cursor: pointer; font-family: var(--font-display); font-size: 13.5px; color: var(--text-dim); }
+  .formula-box { margin-top: 12px; font-size: 13px; color: var(--text-dim); line-height: 1.7; }
+  .formula-box code { background: var(--panel-2); padding: 1px 5px; border-radius: 4px; color: var(--text); font-size: 12.5px; }
+
+  footer {
+    margin-top: 28px; font-size: 12px; color: var(--text-dim); line-height: 1.6;
+    border-top: 1px solid var(--line); padding-top: 16px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    header.top, .panel { opacity: 1; transform: none; }
+  }
+.cell { cursor:pointer; } .cell rect { fill:var(--panel); stroke:var(--line); stroke-width:2; } .cell text { fill:var(--text-dim); font:12px var(--font-body); pointer-events:none; } .cell[aria-pressed="true"] rect { fill:var(--accent-soft); stroke:var(--accent); stroke-width:3; } .cell:hover rect,.cell:focus rect { stroke:var(--accent); } .cell:focus { outline:none; } .plan-key { display:flex; flex-wrap:wrap; gap:16px; font-size:12px; color:var(--text-dim); } .plan-key i { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:6px; } .result-line { gap:12px; } .result-line span:last-child { flex-shrink:0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <p class="eyebrow">Simulador academico &middot; atenuacion pasiva</p>
+      <h1>Como el grosor y el material de un muro degradan una señal de radiofrecuencia</h1>
+    </div>
+    <p class="top-note">Modela perdida de espacio libre mas absorcion de material. No emite ni simula interferencia activa, solo blindaje pasivo.</p>
+  </header>
+
+  <div class="grid">
+
+    <section class="panel scene-panel">
+      <p class="scene-title">Plano 2D del centro penitenciario</p>
+      <p class="scene-sub">Selecciona una celda emisora. El receptor se encuentra fuera del perímetro.</p>
+
+      <svg class="scene" viewBox="0 0 800 510" xmlns="http://www.w3.org/2000/svg" aria-labelledby="plan-title plan-desc">
+ <title id="plan-title">Plano conceptual de una cárcel</title><desc id="plan-desc">Seis celdas seleccionables, patio central, enfermería, administración y receptor exterior. La línea muestra un trayecto simplificado.</desc>
+ <rect width="800" height="510" fill="var(--panel-2)" rx="8"/>
+ <text x="35" y="32" class="zone-label">VISTA SUPERIOR · ESQUEMA ACADÉMICO</text>
+ <rect id="perimeter" x="100" y="70" width="510" height="360" rx="4" fill="none" stroke="var(--wall-concreto)" stroke-width="8"/>
+ <rect x="130" y="210" width="350" height="80" rx="3" fill="var(--ok-soft)" stroke="var(--line)"/>
+ <text x="305" y="247" text-anchor="middle" class="zone-label">PATIO CENTRAL</text>
+ <text x="305" y="268" text-anchor="middle" class="zone-label">Circulación y área común</text>
+ <g class="cell" data-cell="0" role="button" tabindex="0" aria-label="Seleccionar celda 1" aria-pressed="true"><rect x="130" y="100" width="110" height="90" rx="3"/><text x="185" y="134" text-anchor="middle">CELDA 1</text><path d="M145 152h28v23h-28z M145 159h28" fill="none" stroke="var(--text-dim)"/><circle cx="210" cy="165" r="5" fill="var(--line)"/></g><g class="cell" data-cell="1" role="button" tabindex="0" aria-label="Seleccionar celda 2" aria-pressed="false"><rect x="250" y="100" width="110" height="90" rx="3"/><text x="305" y="134" text-anchor="middle">CELDA 2</text><path d="M265 152h28v23h-28z M265 159h28" fill="none" stroke="var(--text-dim)"/><circle cx="330" cy="165" r="5" fill="var(--line)"/></g><g class="cell" data-cell="2" role="button" tabindex="0" aria-label="Seleccionar celda 3" aria-pressed="false"><rect x="370" y="100" width="110" height="90" rx="3"/><text x="425" y="134" text-anchor="middle">CELDA 3</text><path d="M385 152h28v23h-28z M385 159h28" fill="none" stroke="var(--text-dim)"/><circle cx="450" cy="165" r="5" fill="var(--line)"/></g><g class="cell" data-cell="3" role="button" tabindex="0" aria-label="Seleccionar celda 4" aria-pressed="false"><rect x="130" y="310" width="110" height="90" rx="3"/><text x="185" y="344" text-anchor="middle">CELDA 4</text><path d="M145 362h28v23h-28z M145 369h28" fill="none" stroke="var(--text-dim)"/><circle cx="210" cy="375" r="5" fill="var(--line)"/></g><g class="cell" data-cell="4" role="button" tabindex="0" aria-label="Seleccionar celda 5" aria-pressed="false"><rect x="250" y="310" width="110" height="90" rx="3"/><text x="305" y="344" text-anchor="middle">CELDA 5</text><path d="M265 362h28v23h-28z M265 369h28" fill="none" stroke="var(--text-dim)"/><circle cx="330" cy="375" r="5" fill="var(--line)"/></g><g class="cell" data-cell="5" role="button" tabindex="0" aria-label="Seleccionar celda 6" aria-pressed="false"><rect x="370" y="310" width="110" height="90" rx="3"/><text x="425" y="344" text-anchor="middle">CELDA 6</text><path d="M385 362h28v23h-28z M385 369h28" fill="none" stroke="var(--text-dim)"/><circle cx="450" cy="375" r="5" fill="var(--line)"/></g>
+ <g fill="var(--panel)" stroke="var(--line)" stroke-width="2"><rect x="500" y="100" width="85" height="130"/><rect x="500" y="260" width="85" height="140"/></g>
+ <text x="542" y="154" text-anchor="middle" class="zone-label">Enfermería</text><text x="542" y="179" text-anchor="middle" fill="var(--ok)" font-size="24">+</text>
+ <text x="542" y="320" text-anchor="middle" class="zone-label">Control</text><text x="542" y="339" text-anchor="middle" class="zone-label">y acceso</text>
+ <path id="signal-path" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="7 6"/>
+ <circle id="plan-tx" r="8" fill="var(--accent)" stroke="var(--panel)" stroke-width="3"/>
+ <circle cx="720" cy="250" r="18" fill="var(--panel)" stroke="var(--text-dim)" stroke-width="2"/>
+ <path d="M711 256v-6m9 6v-13m9 13v-20" stroke="var(--accent)" stroke-width="4"/>
+ <text x="720" y="299" text-anchor="middle" class="zone-label">Receptor</text><text x="720" y="316" text-anchor="middle" class="zone-label">exterior</text>
+ <text id="rx-power" x="720" y="344" text-anchor="middle" class="reading" font-size="17" fill="var(--text)"></text>
+ <text id="wall-label" x="355" y="464" text-anchor="middle" class="zone-label"></text>
+ <path d="M130 486h200m-200 -5v10m200 -10v10" stroke="var(--text-dim)"/><text x="345" y="490" class="zone-label">10 m · escala de posiciones</text>
+ </svg>
+ <div class="plan-key"><span><i style="background:var(--accent)"></i>Celda emisora</span><span><i style="background:var(--wall-concreto)"></i>Muro perimetral</span></div>
+ <p class="scene-sub" id="route-info" aria-live="polite"></p>
+ <p class="scene-sub">Modelo simplificado: un cruce del muro perimetral; los muros interiores se muestran como distribución y no suman pérdidas. El grosor dibujado está ampliado para facilitar su lectura.</p>
+
+      <div class="verdict-row" id="verdict-row">
+        <span class="dot" id="verdict-dot"></span>
+        <span id="verdict-text"></span>
+      </div>
+    </section>
+
+    <section class="panel controls controls-panel">
+
+      <fieldset>
+        <legend>Tecnologia y frecuencia portadora</legend>
+        <div class="seg" id="tech-seg"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Material del muro</legend>
+        <div class="seg" id="mat-seg"></div>
+      </fieldset>
+
+      <fieldset class="slider-row">
+        <legend>Grosor del muro</legend>
+        <input type="range" id="thickness" min="0.1" max="3.5" step="0.05" value="0.3">
+        <span class="slider-val" id="thickness-val">0.30 m</span>
+      </fieldset>
+
+      <div class="results">
+        <div class="result-line"><span>Distancia al receptor</span><span id="r-distance"></span></div>
+        <div class="result-line"><span>Longitud de onda (λ)</span><span id="r-lambda"></span></div>
+        <div class="result-line"><span>Coeficiente del material</span><span id="r-coef"></span></div>
+        <div class="result-line"><span>Perdida en espacio libre (FSPL)</span><span id="r-fspl">--</span></div>
+        <div class="result-line"><span>Atenuacion por material</span><span id="r-mat">--</span></div>
+        <div class="result-line"><span>Atenuacion total</span><span id="r-total">--</span></div>
+        <div class="result-line"><span>Potencia recibida</span><span id="r-rx">--</span></div>
+        <div class="result-line"><span>Umbral de comunicacion</span><span>-95 dBm</span></div>
+      </div>
+
+      <details>
+        <summary>Ver supuestos y formulas usadas</summary>
+        <div class="formula-box">
+          Distancia celda–receptor: <code id="distance-formula"></code> (según el plano)<br>
+          Potencia de transmision del equipo: <code>Ptx = 23 dBm</code><br>
+          Perdida en espacio libre: <code>FSPL(dB) = 20&middot;log10(d_m) + 20&middot;log10(f_MHz) - 27.55</code><br>
+          Atenuacion de material: <code>A = coeficiente(dB/m) &times; espesor(m)</code><br>
+          Potencia recibida: <code>Prx = Ptx - FSPL - A</code><br>Longitud de onda: <code>λ = c / f</code>, con c ≈ 299 792 458 m/s. A mayor frecuencia, menor longitud de onda.
+        </div>
+      </details>
+    </section>
+
+  </div>
+
+  <footer>
+    Los coeficientes de material son supuestos didácticos heredados del modelo original, sin fuente experimental adjunta. Los resultados no garantizan el bloqueo real de comunicaciones. El simulador modela unicamente blindaje pasivo (perdida por insercion de material), no representa ni calcula interferencia activa de ningun tipo.
+  </footer>
+
+</div>
+
+<script>
+  const TECHS = [
+    { id: '2g', label: '2G', sub: '850 MHz', freq: 850 },
+    { id: '3g', label: '3G', sub: '1900 MHz', freq: 1900 },
+    { id: '4g', label: '4G', sub: '2100 MHz', freq: 2100 },
+    { id: '5gsub6', label: '5G Sub-6', sub: '3.5 GHz', freq: 3500 },
+    { id: '5gmm', label: '5G mmWave', sub: '28 GHz', freq: 28000 },
+  ];
+
+  const MATERIALS = [
+    { id: 'concreto', label: 'Concreto reforzado', coef: { '2g':12,'3g':15,'4g':16,'5gsub6':20,'5gmm':38 }, color: 'var(--wall-concreto)' },
+    { id: 'ladrillo', label: 'Ladrillo', coef: { '2g':6,'3g':8,'4g':9,'5gsub6':12,'5gmm':26 }, color: 'var(--wall-ladrillo)' },
+  ];
+
+  const CELLS = Array.from({length:6}, (_,i) => ({x:185+(i%3)*120,y:i<3?145:355}));
+  const distance = () => Math.hypot(720-CELLS[state.cell].x,250-CELLS[state.cell].y)/20;
+  const PTX_DBM = 23;
+  const THRESHOLD = -95;
+
+  let state = { tech: '4g', material: 'concreto', thickness: 0.3, cell: 0 };
+  let prevValues = { fspl: null, mat: null, total: null, rx: null };
+
+  const techSeg = document.getElementById('tech-seg');
+  const matSeg = document.getElementById('mat-seg');
+
+  TECHS.forEach(t => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.innerHTML = t.label + '<small>' + t.sub + '</small>';
+    b.setAttribute('aria-pressed', t.id === state.tech);
+    b.addEventListener('click', () => { state.tech = t.id; render(true); });
+    b.dataset.id = t.id;
+    techSeg.appendChild(b);
+  });
+
+  MATERIALS.forEach(m => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = m.label;
+    b.setAttribute('aria-pressed', m.id === state.material);
+    b.addEventListener('click', () => { state.material = m.id; render(true); });
+    b.dataset.id = m.id;
+    matSeg.appendChild(b);
+  });
+
+  const thicknessInput = document.getElementById('thickness');
+  thicknessInput.addEventListener('input', () => {
+    state.thickness = parseFloat(thicknessInput.value);
+    render(false);
+  });
+
+  function fspl(freqMHz, distM) {
+    return 20 * Math.log10(distM) + 20 * Math.log10(freqMHz) - 27.55;
+  }
+
+  function animateNumber(el, from, to, suffix, decimals) {
+    if (from === null || !isFinite(from)) { el.textContent = to.toFixed(decimals) + suffix; return; }
+    if (el._frame) cancelAnimationFrame(el._frame);
+    const dur = 380, start = performance.now();
+    function step(now) {
+      const t = Math.min(1, (now - start) / dur);
+      const eased = 1 - Math.pow(1 - t, 3);
+      const val = from + (to - from) * eased;
+      el.textContent = val.toFixed(decimals) + suffix;
+      if (t < 1) el._frame = requestAnimationFrame(step);
+    }
+    el._frame = requestAnimationFrame(step);
+  }
+
+  function render(flashWall) {
+    const tech = TECHS.find(t => t.id === state.tech);
+    const mat = MATERIALS.find(m => m.id === state.material);
+
+    [...techSeg.children].forEach(b => b.setAttribute('aria-pressed', b.dataset.id === state.tech));
+    [...matSeg.children].forEach(b => b.setAttribute('aria-pressed', b.dataset.id === state.material));
+    document.getElementById('thickness-val').textContent = state.thickness.toFixed(2) + ' m';
+
+    const lossFSPL = fspl(tech.freq, distance());
+    const coef = mat.coef[tech.id];
+    const matLoss = coef * state.thickness;
+    const totalLoss = lossFSPL + matLoss;
+    const rx = PTX_DBM - totalLoss;
+
+    animateNumber(document.getElementById('r-fspl'), prevValues.fspl, lossFSPL, ' dB', 1);
+    animateNumber(document.getElementById('r-mat'), prevValues.mat, matLoss, ' dB', 1);
+    animateNumber(document.getElementById('r-total'), prevValues.total, totalLoss, ' dB', 1);
+    animateNumber(document.getElementById('r-rx'), prevValues.rx, rx, ' dBm', 1);
+    animateNumber(document.getElementById('rx-power'), prevValues.rx, rx, ' dBm', 1);
+    prevValues = { fspl: lossFSPL, mat: matLoss, total: totalLoss, rx: rx };
+
+    const verdictRow = document.getElementById('verdict-row');
+    const verdictDot = document.getElementById('verdict-dot');
+    const verdictText = document.getElementById('verdict-text');
+
+    let bars = 0, statusColor, statusBg, msg;
+    if (rx <= THRESHOLD) {
+      bars = 0; statusColor = 'var(--ok)'; statusBg = 'var(--ok-soft)';
+      msg = 'Señal estimada bajo el umbral de −95 dBm en el receptor seleccionado.';
+    } else if (rx <= THRESHOLD + 15) {
+      bars = 2; statusColor = 'var(--warn)'; statusBg = 'var(--warn-soft)';
+      msg = 'Señal degradada, cerca del umbral. La comunicacion seria inestable pero no esta descartada.';
+    } else {
+      bars = 3; statusColor = 'var(--accent)'; statusBg = 'var(--accent-soft)';
+      msg = 'Señal estimada por encima del umbral de comunicación en el receptor exterior.';
+    }
+
+    verdictRow.style.background = statusBg;
+    verdictDot.style.background = statusColor;
+    verdictText.style.color = statusColor;
+    if (verdictText.textContent !== msg) {
+      verdictText.textContent = msg;
+      verdictText.classList.remove('pulse-in');
+      void verdictText.offsetWidth;
+      verdictText.classList.add('pulse-in');
+    }
+
+    const pos = CELLS[state.cell];
+    document.querySelectorAll('.cell').forEach(el => el.setAttribute('aria-pressed', Number(el.dataset.cell) === state.cell));
+    document.getElementById('plan-tx').setAttribute('cx', pos.x);
+    document.getElementById('plan-tx').setAttribute('cy', pos.y);
+    const path = document.getElementById('signal-path');
+    path.setAttribute('d', 'M'+pos.x+' '+pos.y+' L720 250');
+    path.setAttribute('stroke', statusColor);
+    document.getElementById('perimeter').setAttribute('stroke', mat.color);
+    document.getElementById('perimeter').setAttribute('stroke-width', 5 + state.thickness * 4);
+    document.getElementById('wall-label').textContent = mat.label + ' · ' + state.thickness.toFixed(2) + ' m';
+    document.getElementById('r-distance').textContent = distance().toFixed(2) + ' m';
+    document.getElementById('distance-formula').textContent = 'd = ' + distance().toFixed(2) + ' m';
+    document.getElementById('r-lambda').textContent = (299792458 / (tech.freq * 1000000) * 100).toFixed(2) + ' cm';
+    document.getElementById('r-coef').textContent = coef + ' dB/m';
+    document.getElementById('route-info').textContent = 'Celda ' + (state.cell+1) + ' → receptor exterior · ' + distance().toFixed(2) + ' m · 1 muro modelado';
+  }
+
+  document.querySelectorAll('.cell').forEach(el => {
+    const select = () => { state.cell = Number(el.dataset.cell); render(false); };
+    el.addEventListener('click', select);
+    el.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); select(); } });
+  });
+  render(false);
+</script>
+</body>
+</html>
